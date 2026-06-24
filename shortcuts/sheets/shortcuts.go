@@ -151,5 +151,10 @@ func shortcutList() []common.Shortcut {
 		CellsBatchClear,
 		DropdownUpdate,
 		DropdownDelete,
+
+		// lark_sheet_history
+		HistoryList,
+		HistoryRevert,
+		HistoryRevertStatus,
 	}
 }
