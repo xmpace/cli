@@ -19,6 +19,7 @@ func TestHistoryShortcuts_DryRun(t *testing.T) {
 	t.Parallel()
 
 	const versionID = "histVER123"
+	const txnID = "txn-abc-123"
 
 	tests := []struct {
 		name      string
@@ -60,14 +61,14 @@ func TestHistoryShortcuts_DryRun(t *testing.T) {
 			},
 		},
 		{
-			name:     "+history-revert-status routes to invoke_read with version id",
+			name:     "+history-revert-status routes to invoke_read with transaction id",
 			sc:       HistoryRevertStatus,
-			args:     []string{"--url", testURL, "--history-version-id", versionID},
+			args:     []string{"--url", testURL, "--transaction-id", txnID},
 			toolName: "history_revert_status",
 			wantPath: "invoke_read",
 			wantInput: map[string]interface{}{
-				"excel_id":           testToken,
-				"history_version_id": versionID,
+				"excel_id":       testToken,
+				"transaction_id": txnID,
 			},
 		},
 	}
@@ -85,26 +86,34 @@ func TestHistoryShortcuts_DryRun(t *testing.T) {
 	}
 }
 
-// TestHistoryRevert_MissingVersionID asserts the required --history-version-id
-// is enforced in Validate (no request is sent), and the error is tagged with
-// the offending flag param.
-func TestHistoryRevert_MissingVersionID(t *testing.T) {
+// TestHistoryRevert_MissingRequiredFlag asserts the required selector is
+// enforced in Validate (no request is sent) and the error is tagged with the
+// offending flag param: +history-revert needs --history-version-id, while
+// +history-revert-status needs --transaction-id (the receipt from +history-revert).
+func TestHistoryRevert_MissingRequiredFlag(t *testing.T) {
 	t.Parallel()
 
-	for _, sc := range []common.Shortcut{HistoryRevert, HistoryRevertStatus} {
-		sc := sc
-		t.Run(sc.Command, func(t *testing.T) {
+	cases := []struct {
+		sc        common.Shortcut
+		wantParam string
+	}{
+		{HistoryRevert, "--history-version-id"},
+		{HistoryRevertStatus, "--transaction-id"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.sc.Command, func(t *testing.T) {
 			t.Parallel()
-			_, _, err := runShortcutCapturingErr(t, sc, []string{"--url", testURL})
+			_, _, err := runShortcutCapturingErr(t, tc.sc, []string{"--url", testURL})
 			if err == nil {
-				t.Fatalf("%s: expected validation error for missing --history-version-id", sc.Command)
+				t.Fatalf("%s: expected validation error for missing %s", tc.sc.Command, tc.wantParam)
 			}
 			var validationErr *errs.ValidationError
 			if !errors.As(err, &validationErr) {
-				t.Fatalf("%s: error = %T %v, want *errs.ValidationError", sc.Command, err, err)
+				t.Fatalf("%s: error = %T %v, want *errs.ValidationError", tc.sc.Command, err, err)
 			}
-			if validationErr.Param != "--history-version-id" {
-				t.Fatalf("%s: param = %q, want --history-version-id", sc.Command, validationErr.Param)
+			if validationErr.Param != tc.wantParam {
+				t.Fatalf("%s: param = %q, want %s", tc.sc.Command, validationErr.Param, tc.wantParam)
 			}
 		})
 	}

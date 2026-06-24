@@ -68,6 +68,38 @@ func historyRevertInput(token, versionID string) map[string]interface{} {
 	}
 }
 
+// transactionIDFlag is the async-revert receipt selector used by
+// +history-revert-status: the transaction_id returned by +history-revert (NOT a
+// history version id — the facade-agg status tool keys on transaction_id).
+func transactionIDFlag() common.Flag {
+	return common.Flag{
+		Name: "transaction-id",
+		Type: "string",
+		Desc: "Async revert transaction id (from +history-revert). Required.",
+	}
+}
+
+func historyRevertStatusFlags() []common.Flag {
+	return append(historyLocatorFlags(), transactionIDFlag())
+}
+
+// validateTransactionID enforces the required, trimmed --transaction-id and
+// returns it for reuse.
+func validateTransactionID(runtime *common.RuntimeContext) (string, error) {
+	id := strings.TrimSpace(runtime.Str("transaction-id"))
+	if id == "" {
+		return "", sheetsValidationForFlag("transaction-id", "--transaction-id is required")
+	}
+	return id, nil
+}
+
+func historyRevertStatusInput(token, transactionID string) map[string]interface{} {
+	return map[string]interface{}{
+		"excel_id":       token,
+		"transaction_id": transactionID,
+	}
+}
+
 // HistoryRevert wraps the history_revert tool (write): asynchronously revert a
 // spreadsheet to the given history version. --history-version-id is required;
 // a missing value fails in Validate before any request is sent. Returns the
@@ -125,29 +157,29 @@ var HistoryRevertStatus = common.Shortcut{
 	Scopes:      []string{"sheets:spreadsheet:read"},
 	AuthTypes:   []string{"user", "bot"},
 	HasFormat:   true,
-	Flags:       historyRevertFlags(),
+	Flags:       historyRevertStatusFlags(),
 	Validate: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		if _, err := resolveSpreadsheetToken(runtime); err != nil {
 			return err
 		}
-		_, err := validateHistoryVersionID(runtime)
+		_, err := validateTransactionID(runtime)
 		return err
 	},
 	DryRun: func(ctx context.Context, runtime *common.RuntimeContext) *common.DryRunAPI {
 		token, _ := resolveSpreadsheetToken(runtime)
-		versionID := strings.TrimSpace(runtime.Str("history-version-id"))
-		return invokeToolDryRun(token, ToolKindRead, "history_revert_status", historyRevertInput(token, versionID))
+		txnID := strings.TrimSpace(runtime.Str("transaction-id"))
+		return invokeToolDryRun(token, ToolKindRead, "history_revert_status", historyRevertStatusInput(token, txnID))
 	},
 	Execute: func(ctx context.Context, runtime *common.RuntimeContext) error {
 		token, err := resolveSpreadsheetTokenExec(runtime)
 		if err != nil {
 			return err
 		}
-		versionID, err := validateHistoryVersionID(runtime)
+		txnID, err := validateTransactionID(runtime)
 		if err != nil {
 			return err
 		}
-		out, err := callTool(ctx, runtime, token, ToolKindRead, "history_revert_status", historyRevertInput(token, versionID))
+		out, err := callTool(ctx, runtime, token, ToolKindRead, "history_revert_status", historyRevertStatusInput(token, txnID))
 		if err != nil {
 			return err
 		}
