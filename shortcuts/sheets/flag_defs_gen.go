@@ -659,7 +659,7 @@ var flagDefs = map[string]commandDef{
 		Flags: []flagDef{
 			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
 			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
-			{Name: "history-version-id", Kind: "own", Type: "string", Required: "required", Desc: "History version to revert to (from +history-list)."},
+			{Name: "history-version-id", Kind: "own", Type: "string", Required: "optional", Desc: "History version to revert to (from +history-list)."},
 			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
 		},
 	},
@@ -668,7 +668,7 @@ var flagDefs = map[string]commandDef{
 		Flags: []flagDef{
 			{Name: "url", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
 			{Name: "spreadsheet-token", Kind: "public", Type: "string", Required: "xor", Desc: "Spreadsheet locator"},
-			{Name: "history-version-id", Kind: "own", Type: "string", Required: "required", Desc: "History version whose revert status to query (from +history-list)."},
+			{Name: "transaction-id", Kind: "own", Type: "string", Required: "optional", Desc: "Async revert transaction id (from +history-revert)."},
 			{Name: "dry-run", Kind: "system", Type: "bool", Required: "optional"},
 		},
 	},

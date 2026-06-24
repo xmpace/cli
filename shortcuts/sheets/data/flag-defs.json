@@ -4872,7 +4872,7 @@
         "name": "history-version-id",
         "kind": "own",
         "type": "string",
-        "required": "required",
+        "required": "optional",
         "desc": "History version to revert to (from +history-list)."
       },
       {
@@ -4902,11 +4902,11 @@
         "desc": "Spreadsheet locator"
       },
       {
-        "name": "history-version-id",
+        "name": "transaction-id",
         "kind": "own",
         "type": "string",
-        "required": "required",
-        "desc": "History version whose revert status to query (from +history-list)."
+        "required": "optional",
+        "desc": "Async revert transaction id (from +history-revert)."
       },
       {
         "name": "dry-run",
