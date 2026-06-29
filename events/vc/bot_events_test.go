@@ -95,19 +95,33 @@ func TestProcessVCBotEvents_StableFieldsAndRawEvent(t *testing.T) {
 					"create_time": "1776409469274"
 				},
 				"event": {
-					"meeting_no": "987654321",
-					"activity_event_type": "chat_message",
-					"metadata": {
-						"meeting_no": "should_not_use",
-						"activity_event_type": "should_not_use",
-						"reaction_type": "SHOULD_NOT_COLLECT"
-					},
+					"meeting_no": "should_not_use",
+					"activity_event_type": "should_not_use",
 					"chat_messages": [
-						{"message_type": 1, "reaction_type": "SHOULD_NOT_COLLECT"},
-						{"message_type": 3, "reaction_type": {"emoji_type": "JIAYI"}},
-						{"message_type": 3, "reaction_type": "SMART"},
-						{"message_type": 3, "chat_emoji_types": ["OK", "JIAYI"]}
-					]
+						{"message_type": 3, "content": "SHOULD_NOT_COLLECT"}
+					],
+					"meeting_activity_items": [{
+						"activity_event_type": "chat_received",
+						"meeting": {"meeting_no": "987654321"},
+						"chat_received_items": [
+							{"message_type": 1, "content": "hello"},
+							{"message_type": 3, "content": "JIAYI", "reaction_type": {"emoji_type": "SHOULD_NOT_COLLECT"}},
+							{"message_type": 3, "content": "OK", "chat_emoji_types": ["SHOULD_NOT_COLLECT"]},
+							{"message_type": 3, "content": "JIAYI"}
+						]
+					}, {
+						"activity_event_type": "chat_received",
+						"meeting": {"meeting_no": "should_not_use"},
+						"chat_received_items": [
+							{"message_type": 3, "content": "THUMBSUP"}
+						]
+					}, {
+						"activity_event_type": "participant_joined",
+						"meeting": {"meeting_no": "should_not_use"},
+						"chat_received_items": [
+							{"message_type": 3, "content": "SHOULD_NOT_COLLECT"}
+						]
+					}]
 				}
 			}`,
 			want: VCBotEventOutput{
@@ -115,9 +129,9 @@ func TestProcessVCBotEvents_StableFieldsAndRawEvent(t *testing.T) {
 				EventID:           "ev_activity",
 				Timestamp:         "1776409469274",
 				MeetingNo:         "987654321",
-				ActivityEventType: "chat_message",
+				ActivityEventType: "chat_received",
 			},
-			wantEmojis: []string{"JIAYI", "SMART", "OK"},
+			wantEmojis: []string{"JIAYI", "OK", "THUMBSUP"},
 		},
 		{
 			name:      "meeting activity reaction content",

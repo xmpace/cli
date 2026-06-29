@@ -141,12 +141,12 @@ These keys model what the bot observes. Do not treat them as aliases for:
 | `event_id` | string | Globally unique event ID; safe for deduplication |
 | `timestamp` | string (timestamp_ms) | Event delivery time from `header.create_time` when present |
 | `call_id` | string | Invitation call ID; pass through to VC agent join when present |
-| `meeting_no` | string | Meeting number when present in the payload |
-| `activity_event_type` | string | Meeting activity subtype when present |
-| `chat_emoji_types` | string[] | Feishu post emotion `emoji_type` values extracted from `vc.bot.meeting_activity_v1` payloads |
+| `meeting_no` | string | Meeting number from the bot event's declared meeting field |
+| `activity_event_type` | string | First `event.meeting_activity_items[].activity_event_type` value |
+| `chat_emoji_types` | string[] | Feishu post emotion `emoji_type` values from `event.meeting_activity_items[].chat_received_items[]` where `message_type=3`; the key is the item's `content` |
 | `raw_event` | object | Original bot event payload; authoritative for fields not exposed as stable top-level fields |
 
-Malformed or evolving payloads are not forced into fixed fields. If a payload cannot be parsed, `event consume` passes the raw payload through; if a field is not recognized, read `raw_event`.
+Malformed or evolving payloads are not forced into fixed fields. If a payload cannot be parsed, `event consume` passes the raw payload through; if a field is not part of the documented event contract above, read `raw_event` instead of expecting it to be guessed into a stable top-level field.
 
 ### Post emotion forwarding
 
