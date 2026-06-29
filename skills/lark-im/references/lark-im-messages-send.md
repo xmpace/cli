@@ -27,14 +27,12 @@ When using `--as user`, the message is sent as the authorized end user and requi
 - Prefer `--markdown` for headings, lists, links, summaries, reports, or Markdown-looking content.
 - Use `--text` for exact plain text: logs, code, indentation-sensitive text, or literal Markdown.
 - Use `--content` for exact `post` JSON, titles, multiple locales, cards, or unsupported structures.
-- If another skill already returned a final IM `post` payload, use `--msg-type post --content '<payload>'` exactly. Do not convert it to `--markdown`.
 
 | Need | Recommended flag | Why |
 |------|------|------|
 | Send headings, lists, links, summaries, or reports | `--markdown` | Best default for lightweight formatting; converted to Feishu `post` JSON |
 | Send plain text exactly as written | `--text` | Preserves literal text; no Markdown conversion |
 | Precisely control the final payload | `--content` | You provide the exact JSON for `text` / `post` / `interactive` / `share_*` / media payloads |
-| Forward VC meeting-events `im_post` | `--msg-type post --content '<im_post>'` | Preserves `tag:"emotion"` + `emoji_type` nodes so reactions render as Feishu emotions |
 | Send image / file / video / audio | `--image` / `--file` / `--video` / `--audio` | Shortcut uploads URLs, or cwd-relative local files automatically |
 
 ### `--text` vs `--markdown`
@@ -42,7 +40,6 @@ When using `--as user`, the message is sent as the authorized end user and requi
 - Use `--markdown` for lightweight formatted messages.
 - Use `--text` for exact plain text, especially logs, code, indentation, or Markdown characters that should **not** render.
 - Use `--content` when `--markdown` is not enough, especially if you need exact `post` JSON, a title, multiple locales, cards, or unsupported rich structures.
-- VC meeting-events `im_post` is already exact `post` JSON. Sending it with `--markdown` will flatten reaction emotions into plain text.
 
 ## What `--markdown` Really Does
 
