@@ -46,7 +46,7 @@ type vcBotEventEnvelope struct {
 }
 
 type vcBotMeetingActivityEvent struct {
-	MeetingActivityItems []vcBotMeetingActivityItem `json:"meeting_activity_items"`
+	MeetingActivityItems []json.RawMessage `json:"meeting_activity_items"`
 }
 
 type vcBotMeetingActivityItem struct {
@@ -60,19 +60,22 @@ type vcBotChatReceivedItem struct {
 	MessageType json.Number `json:"message_type"`
 }
 
-func (item *vcBotMeetingActivityItem) UnmarshalJSON(data []byte) error {
+func decodeBotMeetingActivityItem(data json.RawMessage) (vcBotMeetingActivityItem, bool) {
 	var payload struct {
-		ActivityEventType string                  `json:"activity_event_type"`
-		Meeting           json.RawMessage         `json:"meeting"`
+		ActivityEventType string `json:"activity_event_type"`
+		Meeting           struct {
+			MeetingNo string `json:"meeting_no"`
+		} `json:"meeting"`
 		ChatReceivedItems []vcBotChatReceivedItem `json:"chat_received_items"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
-		return err
+		return vcBotMeetingActivityItem{}, false
 	}
-	item.ActivityEventType = payload.ActivityEventType
-	item.MeetingNo = jsonStringAt(payload.Meeting, "meeting_no")
-	item.ChatReceivedItems = payload.ChatReceivedItems
-	return nil
+	return vcBotMeetingActivityItem{
+		ActivityEventType: payload.ActivityEventType,
+		MeetingNo:         strings.TrimSpace(payload.Meeting.MeetingNo),
+		ChatReceivedItems: payload.ChatReceivedItems,
+	}, true
 }
 
 func processVCBotEvent(raw *event.RawEvent, includeEmojiTypes bool) (json.RawMessage, error) {
@@ -134,7 +137,14 @@ func botActivityItems(eventType string, event json.RawMessage) []vcBotMeetingAct
 	if err := json.Unmarshal(event, &payload); err != nil {
 		return nil
 	}
-	return payload.MeetingActivityItems
+	items := make([]vcBotMeetingActivityItem, 0, len(payload.MeetingActivityItems))
+	for _, rawItem := range payload.MeetingActivityItems {
+		item, ok := decodeBotMeetingActivityItem(rawItem)
+		if ok {
+			items = append(items, item)
+		}
+	}
+	return items
 }
 
 func botActivityEventType(items []vcBotMeetingActivityItem) string {
