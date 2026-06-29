@@ -238,6 +238,31 @@ func TestProcessVCBotMeetingEvent_MalformedPassthrough(t *testing.T) {
 	}
 }
 
+func TestProcessVCBotMeetingEvent_MalformedActivityPayloadKeepsRawEvent(t *testing.T) {
+	t.Setenv("LARKSUITE_CLI_CONFIG_DIR", t.TempDir())
+
+	out := runBotEventProcess(t, eventTypeBotMeetingEvent, processVCBotMeetingEvent, `{
+		"schema": "2.0",
+		"header": {
+			"event_id": "ev_bad_activity",
+			"event_type": "vc.bot.meeting_activity_v1",
+			"create_time": "1776409469277"
+		},
+		"event": {
+			"meeting_activity_items": ["not an activity item"]
+		}
+	}`)
+	if out.Type != eventTypeBotMeetingEvent {
+		t.Fatalf("Type = %q, want %q", out.Type, eventTypeBotMeetingEvent)
+	}
+	if out.MeetingNo != "" || out.ActivityEventType != "" || len(out.ChatEmojiTypes) != 0 {
+		t.Fatalf("stable fields = meeting_no:%q activity_event_type:%q emojis:%v, want empty", out.MeetingNo, out.ActivityEventType, out.ChatEmojiTypes)
+	}
+	if len(out.RawEvent) == 0 {
+		t.Fatal("RawEvent must be preserved")
+	}
+}
+
 func runBotEventProcess(t *testing.T, eventType string, process event.ProcessFunc, payload string) VCBotEventOutput {
 	t.Helper()
 	raw := &event.RawEvent{

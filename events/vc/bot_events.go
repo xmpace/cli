@@ -25,15 +25,15 @@ type VCBotEventOutput struct {
 }
 
 func processVCBotMeetingInvited(_ context.Context, _ event.APIClient, raw *event.RawEvent, _ map[string]string) (json.RawMessage, error) {
-	return processVCBotEvent(raw, false)
+	return processVCBotEvent(raw)
 }
 
 func processVCBotMeetingEvent(_ context.Context, _ event.APIClient, raw *event.RawEvent, _ map[string]string) (json.RawMessage, error) {
-	return processVCBotEvent(raw, true)
+	return processVCBotEvent(raw)
 }
 
 func processVCBotMeetingEnded(_ context.Context, _ event.APIClient, raw *event.RawEvent, _ map[string]string) (json.RawMessage, error) {
-	return processVCBotEvent(raw, false)
+	return processVCBotEvent(raw)
 }
 
 type vcBotEventEnvelope struct {
@@ -45,13 +45,22 @@ type vcBotEventEnvelope struct {
 	Event json.RawMessage `json:"event"`
 }
 
+type vcBotMeetingInvitedEvent struct {
+	CallID  string `json:"call_id"`
+	Meeting struct {
+		MeetingNo string `json:"meeting_no"`
+	} `json:"meeting"`
+}
+
 type vcBotMeetingActivityEvent struct {
-	MeetingActivityItems []json.RawMessage `json:"meeting_activity_items"`
+	MeetingActivityItems []vcBotMeetingActivityItem `json:"meeting_activity_items"`
 }
 
 type vcBotMeetingActivityItem struct {
 	ActivityEventType string `json:"activity_event_type"`
-	MeetingNo         string
+	Meeting           struct {
+		MeetingNo string `json:"meeting_no"`
+	} `json:"meeting"`
 	ChatReceivedItems []vcBotChatReceivedItem `json:"chat_received_items"`
 }
 
@@ -60,25 +69,11 @@ type vcBotChatReceivedItem struct {
 	MessageType json.Number `json:"message_type"`
 }
 
-func decodeBotMeetingActivityItem(data json.RawMessage) (vcBotMeetingActivityItem, bool) {
-	var payload struct {
-		ActivityEventType string `json:"activity_event_type"`
-		Meeting           struct {
-			MeetingNo string `json:"meeting_no"`
-		} `json:"meeting"`
-		ChatReceivedItems []vcBotChatReceivedItem `json:"chat_received_items"`
-	}
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return vcBotMeetingActivityItem{}, false
-	}
-	return vcBotMeetingActivityItem{
-		ActivityEventType: payload.ActivityEventType,
-		MeetingNo:         strings.TrimSpace(payload.Meeting.MeetingNo),
-		ChatReceivedItems: payload.ChatReceivedItems,
-	}, true
+type vcBotMeetingEndedEvent struct {
+	MeetingNo string `json:"meeting_no"`
 }
 
-func processVCBotEvent(raw *event.RawEvent, includeEmojiTypes bool) (json.RawMessage, error) {
+func processVCBotEvent(raw *event.RawEvent) (json.RawMessage, error) {
 	var envelope vcBotEventEnvelope
 	decoder := json.NewDecoder(bytes.NewReader(raw.Payload))
 	decoder.UseNumber()
@@ -90,61 +85,73 @@ func processVCBotEvent(raw *event.RawEvent, includeEmojiTypes bool) (json.RawMes
 	if eventType == "" {
 		eventType = raw.EventType
 	}
-	activityItems := botActivityItems(eventType, envelope.Event)
 	out := &VCBotEventOutput{
-		Type:              eventType,
-		EventID:           envelope.Header.EventID,
-		Timestamp:         envelope.Header.CreateTime,
-		CallID:            botCallID(eventType, envelope.Event),
-		MeetingNo:         botMeetingNo(eventType, envelope.Event, activityItems),
-		ActivityEventType: botActivityEventType(activityItems),
-		RawEvent:          append(json.RawMessage(nil), raw.Payload...),
+		Type:      eventType,
+		EventID:   envelope.Header.EventID,
+		Timestamp: envelope.Header.CreateTime,
+		RawEvent:  append(json.RawMessage(nil), raw.Payload...),
 	}
-	if includeEmojiTypes {
-		out.ChatEmojiTypes = botEmojiTypes(activityItems)
-	}
+	fillBotEventOutput(eventType, envelope.Event, out)
 	return json.Marshal(out)
 }
 
-func botCallID(eventType string, event json.RawMessage) string {
-	if eventType != eventTypeBotMeetingInvited {
-		return ""
-	}
-	return jsonStringAt(event, "call_id")
-}
-
-func botMeetingNo(eventType string, event json.RawMessage, activityItems []vcBotMeetingActivityItem) string {
+func fillBotEventOutput(eventType string, data json.RawMessage, out *VCBotEventOutput) {
 	switch eventType {
 	case eventTypeBotMeetingInvited:
-		return jsonStringAt(event, "meeting", "meeting_no")
-	case eventTypeBotMeetingEvent:
-		for _, item := range activityItems {
-			if meetingNo := strings.TrimSpace(item.MeetingNo); meetingNo != "" {
-				return meetingNo
-			}
+		payload, err := decodeBotMeetingInvitedEvent(data)
+		if err != nil {
+			return
 		}
+		out.CallID = strings.TrimSpace(payload.CallID)
+		out.MeetingNo = strings.TrimSpace(payload.Meeting.MeetingNo)
+	case eventTypeBotMeetingEvent:
+		payload, err := decodeBotMeetingActivityEvent(data)
+		if err != nil {
+			return
+		}
+		out.MeetingNo = botActivityMeetingNo(payload.MeetingActivityItems)
+		out.ActivityEventType = botActivityEventType(payload.MeetingActivityItems)
+		out.ChatEmojiTypes = botEmojiTypes(payload.MeetingActivityItems)
 	case eventTypeBotMeetingEnded:
-		return jsonStringAt(event, "meeting_no")
+		payload, err := decodeBotMeetingEndedEvent(data)
+		if err != nil {
+			return
+		}
+		out.MeetingNo = strings.TrimSpace(payload.MeetingNo)
 	}
-	return ""
 }
 
-func botActivityItems(eventType string, event json.RawMessage) []vcBotMeetingActivityItem {
-	if eventType != eventTypeBotMeetingEvent {
-		return nil
+func decodeBotMeetingInvitedEvent(data json.RawMessage) (vcBotMeetingInvitedEvent, error) {
+	var payload vcBotMeetingInvitedEvent
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return vcBotMeetingInvitedEvent{}, err
 	}
+	return payload, nil
+}
+
+func decodeBotMeetingActivityEvent(data json.RawMessage) (vcBotMeetingActivityEvent, error) {
 	var payload vcBotMeetingActivityEvent
-	if err := json.Unmarshal(event, &payload); err != nil {
-		return nil
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return vcBotMeetingActivityEvent{}, err
 	}
-	items := make([]vcBotMeetingActivityItem, 0, len(payload.MeetingActivityItems))
-	for _, rawItem := range payload.MeetingActivityItems {
-		item, ok := decodeBotMeetingActivityItem(rawItem)
-		if ok {
-			items = append(items, item)
+	return payload, nil
+}
+
+func decodeBotMeetingEndedEvent(data json.RawMessage) (vcBotMeetingEndedEvent, error) {
+	var payload vcBotMeetingEndedEvent
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return vcBotMeetingEndedEvent{}, err
+	}
+	return payload, nil
+}
+
+func botActivityMeetingNo(items []vcBotMeetingActivityItem) string {
+	for _, item := range items {
+		if meetingNo := strings.TrimSpace(item.Meeting.MeetingNo); meetingNo != "" {
+			return meetingNo
 		}
 	}
-	return items
+	return ""
 }
 
 func botActivityEventType(items []vcBotMeetingActivityItem) string {
@@ -185,22 +192,4 @@ func addEmojiType(value string, seen map[string]bool, out *[]string) {
 	}
 	seen[value] = true
 	*out = append(*out, value)
-}
-
-func jsonStringAt(raw json.RawMessage, path ...string) string {
-	for _, key := range path {
-		if len(raw) == 0 {
-			return ""
-		}
-		var object map[string]json.RawMessage
-		if err := json.Unmarshal(raw, &object); err != nil {
-			return ""
-		}
-		raw = object[key]
-	}
-	var value string
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return ""
-	}
-	return strings.TrimSpace(value)
 }
