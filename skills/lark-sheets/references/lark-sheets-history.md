@@ -16,14 +16,14 @@
 |---------|---------|------|
 | 查看历史版本列表 | `+history-list` | 返回 `minor_histories`，每条含 `history_version_id` / `create_time` / `action` / `all_block_revision` 四个字段 |
 | 回滚到指定历史版本 | `+history-revert` | 传入 `--history-version-id`；异步受理，返回可查询标识 |
-| 查询回滚状态 | `+history-revert-status` | 轮询某次回滚的进行中 / 成功 / 失败状态 |
+| 查询回滚状态 | `+history-revert-status` | 传入 `--transaction-id`（取自 `+history-revert` 的异步受理标识）；轮询某次回滚的进行中 / 成功 / 失败状态 |
 
-典型工作流：`+history-list` 拿到目标版本的 `history_version_id` → `+history-revert` 发起回滚 → `+history-revert-status` 轮询直到成功或失败。
+典型工作流：`+history-list` 拿到目标版本的 `history_version_id` → `+history-revert` 发起回滚并取回 `transaction_id` → `+history-revert-status --transaction-id <transaction_id>` 轮询直到成功或失败。
 
 **注意事项（必须了解）**：
 - **回滚是写入 / 不可逆操作**：会用历史版本内容覆盖当前表格，发起前请确认目标 `history_version_id` 正确。
-- **回滚是异步的**：`+history-revert` 返回的是受理标识，不代表回滚已完成；必须用 `+history-revert-status` 确认最终结果。
-- **`history_version_id` 取自 `+history-list`**：不要臆造或复用别的标识。
+- **回滚是异步的**：`+history-revert` 返回的是 `transaction_id`（受理标识），不代表回滚已完成；必须用 `+history-revert-status --transaction-id <transaction_id>` 确认最终结果。
+- **`history_version_id` 与 `transaction_id` 不是同一个**：`history_version_id` 用于 `+history-revert`（取自 `+history-list`）；`transaction_id` 用于 `+history-revert-status`（取自 `+history-revert` 的输出）。
 - **历史是工作簿级**：定位只需 `--url` / `--spreadsheet-token`（XOR），不需要子表选择器。
 
 ## Shortcuts
@@ -48,7 +48,7 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--history-version-id` | string | required | 要回滚到的历史版本（取自 +history-list） |
+| `--history-version-id` | string | optional | 要回滚到的历史版本（取自 +history-list） |
 
 ### `+history-revert-status`
 
@@ -56,11 +56,11 @@ _公共：URL/token（无 sheet 定位） · 系统：`--dry-run`_
 
 | Flag | Type | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `--history-version-id` | string | required | 要查询回滚状态的历史版本（取自 +history-list） |
+| `--transaction-id` | string | optional | 异步回滚的受理标识（取自 +history-revert） |
 
 ## Examples
 
-公共定位：所有 shortcut 顶部排列 `--url` / `--spreadsheet-token`（XOR，二选一）。`--history-version-id` 取自 `+history-list` 的输出。
+公共定位：所有 shortcut 顶部排列 `--url` / `--spreadsheet-token`（XOR，二选一）。`+history-revert` 用 `--history-version-id`（取自 `+history-list`）；`+history-revert-status` 用 `--transaction-id`（取自 `+history-revert` 的异步受理标识）。
 
 ### `+history-list`
 
@@ -83,5 +83,5 @@ lark-cli sheets +history-revert --url "https://sample.feishu.cn/sheets/SHTxxxxxx
 
 ```bash
 # 查询某次回滚的当前状态（进行中 / 成功 / 失败）
-lark-cli sheets +history-revert-status --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --history-version-id "<id-from-history-list>"
+lark-cli sheets +history-revert-status --url "https://sample.feishu.cn/sheets/SHTxxxxxx" --transaction-id "<transaction-id-from-history-revert>"
 ```
