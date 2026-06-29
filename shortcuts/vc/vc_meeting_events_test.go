@@ -116,10 +116,10 @@ func participantJoinedEvent() map[string]interface{} {
 			"participant_joined_items": []interface{}{
 				map[string]interface{}{
 					"participant": map[string]interface{}{
-						"id":               "bot_001",
-						"user_name":        "Demo Bot",
-						"participant_type": "2",
-						"role":             "4",
+						"id":        "bot_001",
+						"user_name": "Demo Bot",
+						"user_type": 2,
+						"user_role": 4,
 					},
 					"join_time": "2026-04-17T08:00:00Z",
 				},
@@ -159,7 +159,7 @@ func chatReceivedEvent() map[string]interface{} {
 			"chat_received_items": []interface{}{
 				map[string]interface{}{
 					"content":      "hello",
-					"message_type": 3,
+					"message_type": 1,
 					"operator": map[string]interface{}{
 						"id":        "u1",
 						"user_name": "Alice",
@@ -187,7 +187,7 @@ func multiChatReceivedEvent() map[string]interface{} {
 			"chat_received_items": []interface{}{
 				map[string]interface{}{
 					"content":      "第一条\n第二行",
-					"message_type": 3,
+					"message_type": 1,
 					"send_time":    "1776408061000",
 					"operator": map[string]interface{}{
 						"id":        "u1",
@@ -196,7 +196,7 @@ func multiChatReceivedEvent() map[string]interface{} {
 				},
 				map[string]interface{}{
 					"content":      "第二条",
-					"message_type": 3,
+					"message_type": 1,
 					"send_time":    "1776408062000",
 					"operator": map[string]interface{}{
 						"id":        "u1",
@@ -741,7 +741,7 @@ func TestMeetingEvents_ExecuteJSON_PrunesEmptySlices(t *testing.T) {
 			t.Fatalf("json output should not contain %q: %s", unwanted, out)
 		}
 	}
-	if !strings.Contains(out, `"message_type": 3`) {
+	if !strings.Contains(out, `"message_type": 1`) {
 		t.Fatalf("json output should keep numeric fields: %s", out)
 	}
 }
@@ -768,8 +768,8 @@ func TestMeetingEvents_ExecuteJSON_IncludesIMPostEmotionForReaction(t *testing.T
 	for _, want := range []string{
 		`"im_post":{`,
 		`"title":"会中事件：项目例会"`,
-		`"tag":"text","text":"2026-04-17T16:01:01+08:00Alice发言/聊天：hello"`,
-		`"tag":"text","text":"2026-04-17T16:01:02+08:00Alice表情互动："`,
+		`"tag":"text","text":"2026-04-17T14:41:01+08:00Alice发言/聊天：hello"`,
+		`"tag":"text","text":"2026-04-17T14:41:02+08:00Alice表情互动："`,
 		`"tag":"emotion","emoji_type":"OK"`,
 	} {
 		if !strings.Contains(out, want) {
@@ -841,8 +841,8 @@ func TestMeetingEvents_ExecutePretty(t *testing.T) {
 		"会议主题：项目例会",
 		"会议时间：2026-04-17 15:15:00（进行中）",
 		"Demo Bot(bot_001) 加入了会议",
-		"Alice(u1): [reaction] 第一条\\n第二行",
-		"Alice(u1): [reaction] 第二条",
+		"Alice(u1): [text] 第一条\\n第二行",
+		"Alice(u1): [text] 第二条",
 		"Bob(u2) 开始共享「共享文档」",
 		"URL: https://example.com/doc",
 		"page_token: 1710000000000000000",
@@ -1165,6 +1165,44 @@ func TestMeetingEventUserWithID(t *testing.T) {
 				t.Fatalf("meetingEventUserWithID() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestMeetingEventsIdentityFromParticipant_UsesContractFields(t *testing.T) {
+	got := meetingEventsIdentityFromParticipant(map[string]interface{}{
+		"id":        "u1",
+		"user_name": "Alice",
+		"user_type": 1,
+		"user_role": 2,
+	}, meetingEventsIdentity{})
+
+	if got.ParticipantType != "human" || got.Role != "host" {
+		t.Fatalf("identity = %#v, want participant_type=human role=host", got)
+	}
+}
+
+func TestMeetingEventsIdentityFromParticipant_UserRoleParticipant(t *testing.T) {
+	got := meetingEventsIdentityFromParticipant(map[string]interface{}{
+		"id":        "u1",
+		"user_name": "Alice",
+		"user_type": 1,
+		"user_role": 1,
+	}, meetingEventsIdentity{})
+
+	if got.Role != "participant" {
+		t.Fatalf("identity = %#v, want role=participant", got)
+	}
+}
+
+func TestMeetingEventsIdentityFromParticipant_IgnoresGenericTypeField(t *testing.T) {
+	got := meetingEventsIdentityFromParticipant(map[string]interface{}{
+		"id":        "u1",
+		"user_name": "Alice",
+		"type":      "bot",
+	}, meetingEventsIdentity{})
+
+	if got.ParticipantType != "human" {
+		t.Fatalf("identity = %#v, generic type field should not drive participant_type", got)
 	}
 }
 

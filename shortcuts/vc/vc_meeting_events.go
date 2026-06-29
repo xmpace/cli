@@ -253,17 +253,9 @@ func fetchMeetingEventsCurrentRoster(runtime *common.RuntimeContext) ([]interfac
 		return nil, fmt.Sprintf("current_roster unavailable: %v", err)
 	}
 	if meeting := common.GetMap(data, "meeting"); meeting != nil {
-		if roster := common.GetSlice(meeting, "participants"); len(roster) > 0 {
-			return roster, ""
-		}
-		if roster := common.GetSlice(meeting, "current_roster"); len(roster) > 0 {
-			return roster, ""
-		}
+		return common.GetSlice(meeting, "participants"), ""
 	}
-	if roster := common.GetSlice(data, "participants"); len(roster) > 0 {
-		return roster, ""
-	}
-	return common.GetSlice(data, "current_roster"), ""
+	return nil, ""
 }
 
 func meetingEventsBotIdentity(botInfo *common.BotInfo) meetingEventsIdentity {
@@ -390,7 +382,14 @@ func meetingEventsIdentityFromParticipant(participant map[string]interface{}, se
 }
 
 func meetingEventsParticipantType(participant map[string]interface{}) string {
-	raw := strings.ToLower(strings.TrimSpace(firstNonEmptyString(participant, "participant_type", "user_type", "type")))
+	if raw := meetingEventsParticipantTypeFromParticipantType(fieldValueString(participant, "participant_type")); raw != "" {
+		return raw
+	}
+	return meetingEventsParticipantTypeFromUserType(fieldValueString(participant, "user_type"))
+}
+
+func meetingEventsParticipantTypeFromParticipantType(raw string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
 	switch raw {
 	case "1", "user", "human":
 		return "human"
@@ -404,7 +403,28 @@ func meetingEventsParticipantType(participant map[string]interface{}) string {
 }
 
 func meetingEventsParticipantRole(participant map[string]interface{}) string {
-	raw := strings.ToLower(strings.TrimSpace(firstNonEmptyString(participant, "role", "participant_role")))
+	if raw := meetingEventsRoleFromRosterRole(fieldValueString(participant, "role")); raw != "" {
+		return raw
+	}
+	return meetingEventsRoleFromEventUserRole(fieldValueString(participant, "user_role"))
+}
+
+func meetingEventsParticipantTypeFromUserType(raw string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	switch raw {
+	case "1", "user", "human":
+		return "human"
+	case "2", "bot", "app":
+		return "bot"
+	case "":
+		return ""
+	default:
+		return raw
+	}
+}
+
+func meetingEventsRoleFromRosterRole(raw string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
 	switch raw {
 	case "1", "host":
 		return "host"
@@ -421,13 +441,40 @@ func meetingEventsParticipantRole(participant map[string]interface{}) string {
 	}
 }
 
-func firstNonEmptyString(values map[string]interface{}, keys ...string) string {
-	for _, key := range keys {
-		if value := common.GetString(values, key); value != "" {
-			return value
-		}
+func meetingEventsRoleFromEventUserRole(raw string) string {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	switch raw {
+	case "1", "participant", "attendee":
+		return "participant"
+	case "2", "host":
+		return "host"
+	case "4", "bot", "app":
+		return "bot"
+	case "", "0":
+		return ""
+	default:
+		return raw
 	}
-	return ""
+}
+
+func fieldValueString(values map[string]interface{}, key string) string {
+	if values == nil {
+		return ""
+	}
+	switch value := values[key].(type) {
+	case string:
+		return value
+	case int:
+		return strconv.Itoa(value)
+	case int64:
+		return strconv.FormatInt(value, 10)
+	case float64:
+		return strconv.FormatInt(int64(value), 10)
+	case json.Number:
+		return value.String()
+	default:
+		return ""
+	}
 }
 
 func identityLabel(identity meetingEventsIdentity) string {
@@ -585,7 +632,7 @@ func chatIMPostRows(event meetingEventsEvent) [][]meetingEventsIMPostElement {
 		if item == nil {
 			continue
 		}
-		when := firstNonEmptyString(item, "send_time", "create_time")
+		when := common.GetString(item, "send_time")
 		if when == "" {
 			when = event.EventTime
 		}
@@ -632,7 +679,7 @@ func transcriptIMPostRows(event meetingEventsEvent) [][]meetingEventsIMPostEleme
 		if item == nil {
 			continue
 		}
-		when := firstNonEmptyString(item, "start_time_ms", "time")
+		when := common.GetString(item, "start_time_ms")
 		if when == "" {
 			when = event.EventTime
 		}
@@ -658,7 +705,7 @@ func magicShareIMPostRows(event meetingEventsEvent, action string) [][]meetingEv
 		if item == nil {
 			continue
 		}
-		when := firstNonEmptyString(item, "time")
+		when := common.GetString(item, "time")
 		if when == "" {
 			when = event.EventTime
 		}
@@ -1352,10 +1399,7 @@ func meetingEventUserWithID(user map[string]interface{}) string {
 }
 
 func meetingEventType(event map[string]interface{}) string {
-	if eventType := common.GetString(event, "event_type"); eventType != "" {
-		return eventType
-	}
-	return common.GetString(common.GetMap(event, "payload"), "activity_event_type")
+	return common.GetString(event, "event_type")
 }
 
 func meetingEventSummary(event map[string]interface{}) string {
