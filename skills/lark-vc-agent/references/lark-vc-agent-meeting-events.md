@@ -191,7 +191,9 @@ VC 域会在 `+meeting-events --format json` 的返回体中输出 `data.im_post
 - 普通聊天、转写、参会变化等是 `tag:"text"`。
 - 会中 reaction 是 `tag:"emotion"`，`emoji_type` 已由 VC 域从 reaction `content` 填好。
 - 发送到 IM 时，不要重新解析 pretty 输出，不要生成 Markdown 报告，不要自行把 reaction 渲染成文字。
-- 如果发送前需要先确认收件人、内容或发送身份，只保留 `im_post` 作为待发送 payload；确认后继续发送该 `im_post`，不要发送确认前展示给用户的文字摘要。
+- 如果用户原始请求已经明确“发给我 / 推送给我 / 发到我的聊天框 / 发到我的单聊”，这已经覆盖本次收件人、内容和发送动作，直接发送给当前用户，不要再二次询问“是否发送”。
+- 这条 VC 转发链路默认使用应用身份 `--as bot` 发送；只有用户明确要求“用本人身份 / 用户身份发送”时才切到 `--as user`。
+- 如果用户要求发给某个群或其他人但收件人不可唯一确定，只询问缺失的收件人信息；确认后继续发送该 `im_post`，不要发送确认前展示给用户的文字摘要。
 
 ```bash
 POST=$(lark-cli vc +meeting-events \
@@ -207,7 +209,7 @@ lark-cli im +messages-send \
   --content "$POST"
 ```
 
-如果需要在发送前确认内容，检查 `im_post.zh_cn.content` 是否已经包含 `{"tag":"emotion","emoji_type":"OK"}` 这类节点。不要把 `im_post` 转成 Markdown 或普通文本再发送；“发送以上内容”这类二次确认也仍然指向待发送的 `im_post` payload，不是前一条自然语言预览。
+如果用户已经要求“发给我”，`<open_id>` 使用当前用户的 open_id；需要解析时先用用户查询能力获取当前用户信息。检查 `im_post.zh_cn.content` 是否已经包含 `{"tag":"emotion","emoji_type":"OK"}` 这类节点。不要把 `im_post` 转成 Markdown 或普通文本再发送；任何后续“发送以上内容”也仍然指向待发送的 `im_post` payload，不是前一条自然语言预览。
 
 ## pretty 输出示例
 
