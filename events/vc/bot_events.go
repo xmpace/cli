@@ -46,19 +46,19 @@ type vcBotEventEnvelope struct {
 }
 
 type vcBotEventBody struct {
-	CallID               string                     `json:"call_id"`
-	MeetingNo            string                     `json:"meeting_no"`
-	Meeting              vcBotMeeting               `json:"meeting"`
+	CallID    string `json:"call_id"`
+	MeetingNo string `json:"meeting_no"`
+	Meeting   struct {
+		MeetingNo string `json:"meeting_no"`
+	} `json:"meeting"`
 	MeetingActivityItems []vcBotMeetingActivityItem `json:"meeting_activity_items"`
 }
 
-type vcBotMeeting struct {
-	MeetingNo string `json:"meeting_no"`
-}
-
 type vcBotMeetingActivityItem struct {
-	ActivityEventType string                  `json:"activity_event_type"`
-	Meeting           vcBotMeeting            `json:"meeting"`
+	ActivityEventType string `json:"activity_event_type"`
+	Meeting           struct {
+		MeetingNo string `json:"meeting_no"`
+	} `json:"meeting"`
 	ChatReceivedItems []vcBotChatReceivedItem `json:"chat_received_items"`
 }
 
