@@ -71,6 +71,10 @@ Card messages (`interactive` type) are not yet supported for compact conversion 
 
 When sending content fetched from a Lark doc as a message, fetch the doc with --doc-format im-markdown, then send it as a message using the --markdown format. The fetched content is already in markdown; in any content-forwarding scenario, keep the fetched original text and send it in the --markdown format. Note: if the doc contains a cite tag with type="user", keep it as-is and do not strip the tag.
 
+### Sending Exact Post Payloads
+
+When another Lark skill already returns an exact IM `post` payload, send it unchanged with `--msg-type post --content '<payload>'`. Do not convert it to `--markdown` or rewrite it as text. This is required for VC meeting-event `im_post` payloads because reaction rows contain `tag:"emotion"` and `emoji_type`; rewriting them as markdown turns Feishu emotions into plain text such as `JIAYI`, `OK`, or `THUMBSUP`.
+
 ### Flag Types
 
 Flags support two layers:
