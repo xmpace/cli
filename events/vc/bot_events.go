@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"sort"
 	"strings"
 
 	"github.com/larksuite/cli/internal/event"
@@ -22,7 +21,7 @@ type VCBotEventOutput struct {
 	MeetingNo         string          `json:"meeting_no,omitempty"         desc:"Meeting number when present in the bot event payload"`
 	ActivityEventType string          `json:"activity_event_type,omitempty" desc:"Meeting activity event subtype when present"`
 	ChatEmojiTypes    []string        `json:"chat_emoji_types,omitempty"   desc:"Feishu post emotion emoji_type values extracted from vc.bot.meeting_activity_v1 payloads"`
-	RawEvent          json.RawMessage `json:"raw_event,omitempty"          desc:"Original VC bot event payload; authoritative for fields not normalized by lark-cli"`
+	RawEvent          json.RawMessage `json:"raw_event,omitempty"          desc:"Original VC bot event payload; authoritative for fields not exposed as stable top-level fields"`
 }
 
 func processVCBotMeetingInvited(_ context.Context, _ event.APIClient, raw *event.RawEvent, _ map[string]string) (json.RawMessage, error) {
@@ -38,105 +37,105 @@ func processVCBotMeetingEnded(_ context.Context, _ event.APIClient, raw *event.R
 }
 
 func processVCBotEvent(raw *event.RawEvent, includeEmojiTypes bool) (json.RawMessage, error) {
-	var payload any
+	var envelope struct {
+		Header struct {
+			EventID    string `json:"event_id"`
+			EventType  string `json:"event_type"`
+			CreateTime string `json:"create_time"`
+		} `json:"header"`
+		Event map[string]any `json:"event"`
+	}
 	decoder := json.NewDecoder(bytes.NewReader(raw.Payload))
 	decoder.UseNumber()
-	if err := decoder.Decode(&payload); err != nil {
+	if err := decoder.Decode(&envelope); err != nil {
 		return raw.Payload, nil //nolint:nilerr // passthrough on malformed payload so consumers still see the event
 	}
 
 	out := &VCBotEventOutput{
-		Type:              firstString(payload, "event_type"),
-		EventID:           firstString(payload, "event_id"),
-		Timestamp:         firstString(payload, "create_time"),
-		CallID:            firstString(payload, "call_id"),
-		MeetingNo:         firstString(payload, "meeting_no"),
-		ActivityEventType: firstString(payload, "activity_event_type"),
+		Type:              envelope.Header.EventType,
+		EventID:           envelope.Header.EventID,
+		Timestamp:         envelope.Header.CreateTime,
+		CallID:            jsonString(envelope.Event["call_id"]),
+		MeetingNo:         botMeetingNo(envelope.Event),
+		ActivityEventType: botActivityEventType(envelope.Event),
 		RawEvent:          append(json.RawMessage(nil), raw.Payload...),
 	}
 	if out.Type == "" {
 		out.Type = raw.EventType
 	}
 	if includeEmojiTypes {
-		out.ChatEmojiTypes = botEmojiTypes(payload)
+		out.ChatEmojiTypes = botEmojiTypes(envelope.Event)
 	}
 	return json.Marshal(out)
 }
 
-func firstString(value any, key string) string {
-	switch v := value.(type) {
-	case map[string]any:
-		if raw, ok := v[key]; ok {
-			if s := jsonString(raw); s != "" {
-				return s
-			}
+func botMeetingNo(event map[string]any) string {
+	for _, key := range []string{"meeting_no", "meeting_number"} {
+		if s := jsonString(event[key]); s != "" {
+			return s
 		}
-		for _, child := range orderedChildren(v) {
-			if s := firstString(child, key); s != "" {
-				return s
-			}
+	}
+	for _, key := range []string{"meeting", "meeting_info"} {
+		meeting := jsonMap(event[key])
+		if s := jsonString(meeting["meeting_no"]); s != "" {
+			return s
 		}
-	case []any:
-		for _, child := range v {
-			if s := firstString(child, key); s != "" {
-				return s
-			}
+	}
+	for _, item := range jsonMapSlice(event["meeting_activity_items"]) {
+		if s := botMeetingNo(item); s != "" {
+			return s
 		}
 	}
 	return ""
 }
 
-func orderedChildren(v map[string]any) []any {
-	priority := []string{"header", "event", "meeting", "meeting_info", "activity", "message", "reaction_type"}
-	out := make([]any, 0, len(v))
-	used := make(map[string]bool, len(priority))
-	for _, key := range priority {
-		if child, ok := v[key]; ok {
-			out = append(out, child)
-			used[key] = true
+func botActivityEventType(event map[string]any) string {
+	if s := jsonString(event["activity_event_type"]); s != "" {
+		return s
+	}
+	for _, item := range jsonMapSlice(event["meeting_activity_items"]) {
+		if s := jsonString(item["activity_event_type"]); s != "" {
+			return s
 		}
 	}
-	rest := make([]string, 0, len(v))
-	for key := range v {
-		if !used[key] {
-			rest = append(rest, key)
-		}
-	}
-	sort.Strings(rest)
-	for _, key := range rest {
-		out = append(out, v[key])
-	}
-	return out
+	return ""
 }
 
-func botEmojiTypes(value any) []string {
+func botEmojiTypes(event map[string]any) []string {
 	seen := map[string]bool{}
 	var out []string
-	collectEmojiTypes(value, seen, &out)
+	collectEmojiTypesFromChatItems(event["chat_received_items"], seen, &out)
+	collectEmojiTypesFromChatItems(event["chat_messages"], seen, &out)
+	for _, item := range jsonMapSlice(event["meeting_activity_items"]) {
+		collectEmojiTypesFromChatItems(item["chat_received_items"], seen, &out)
+		collectEmojiTypesFromChatItems(item["chat_messages"], seen, &out)
+	}
 	return out
 }
 
-func collectEmojiTypes(value any, seen map[string]bool, out *[]string) {
-	switch v := value.(type) {
-	case map[string]any:
-		if isBotMeetingReactionItem(v) {
-			addEmojiType(jsonString(v["content"]), seen, out)
+func collectEmojiTypesFromChatItems(value any, seen map[string]bool, out *[]string) {
+	for _, item := range jsonMapSlice(value) {
+		if !isBotMeetingReactionItem(item) {
+			continue
 		}
+		addEmojiType(jsonString(item["content"]), seen, out)
 		for _, key := range []string{"emoji_type", "chat_emoji_type", "reaction_type"} {
-			addEmojiType(jsonString(v[key]), seen, out)
+			addEmojiTypeFromValue(item[key], seen, out)
 		}
-		if raw, ok := v["chat_emoji_types"]; ok {
-			for _, s := range jsonStringSlice(raw) {
-				addEmojiType(s, seen, out)
-			}
+		for _, s := range jsonStringSlice(item["chat_emoji_types"]) {
+			addEmojiType(s, seen, out)
 		}
-		for _, child := range v {
-			collectEmojiTypes(child, seen, out)
-		}
-	case []any:
-		for _, child := range v {
-			collectEmojiTypes(child, seen, out)
-		}
+	}
+}
+
+func addEmojiTypeFromValue(value any, seen map[string]bool, out *[]string) {
+	if s := jsonString(value); s != "" {
+		addEmojiType(s, seen, out)
+		return
+	}
+	m := jsonMap(value)
+	for _, key := range []string{"emoji_type", "chat_emoji_type", "reaction_type"} {
+		addEmojiType(jsonString(m[key]), seen, out)
 	}
 }
 
@@ -192,4 +191,25 @@ func jsonStringSlice(value any) []string {
 		return []string{v}
 	}
 	return nil
+}
+
+func jsonMap(value any) map[string]any {
+	if m, ok := value.(map[string]any); ok {
+		return m
+	}
+	return nil
+}
+
+func jsonMapSlice(value any) []map[string]any {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		if m := jsonMap(item); m != nil {
+			out = append(out, m)
+		}
+	}
+	return out
 }

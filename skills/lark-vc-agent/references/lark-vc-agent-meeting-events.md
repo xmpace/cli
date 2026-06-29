@@ -162,6 +162,8 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 | `identity` | 当前读取身份，包含 `id/name/participant_type/role/is_self/label` |
 | `current_roster` | 服务端当前名单，不从历史事件 replay 推导 |
 | `events` | 结构化事件列表；每条事件含 `actors` 和原始 `payload/raw` |
+| `im_post` | VC 域包装好的飞书 IM `post` payload；会中 reaction 已是 `tag:"emotion"` + `emoji_type`，可直接作为 `im +messages-send --msg-type post --content` 的内容 |
+| `warnings` | 非阻断告警列表，例如当前名单补充信息不可用；事件列表本身仍可使用 |
 | `has_more` | 是否还有下一页 |
 | `page_token` | 下一页游标 |
 

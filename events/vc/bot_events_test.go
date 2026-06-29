@@ -97,7 +97,13 @@ func TestProcessVCBotEvents_StableFieldsAndRawEvent(t *testing.T) {
 				"event": {
 					"meeting_no": "987654321",
 					"activity_event_type": "chat_message",
+					"metadata": {
+						"meeting_no": "should_not_use",
+						"activity_event_type": "should_not_use",
+						"reaction_type": "SHOULD_NOT_COLLECT"
+					},
 					"chat_messages": [
+						{"message_type": 1, "reaction_type": "SHOULD_NOT_COLLECT"},
 						{"message_type": 3, "reaction_type": {"emoji_type": "JIAYI"}},
 						{"message_type": 3, "reaction_type": "SMART"},
 						{"message_type": 3, "chat_emoji_types": ["OK", "JIAYI"]}
