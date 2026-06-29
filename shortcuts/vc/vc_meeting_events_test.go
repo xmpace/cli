@@ -779,9 +779,9 @@ func TestMeetingEvents_ExecuteJSON_IncludesIMPostEmotionForReaction(t *testing.T
 }
 
 func TestBuildMeetingEventsIMPost_TruncatesLargePayload(t *testing.T) {
-	events := make([]normalizedMeetingEvent, 0, maxMeetingEventsIMPostRows+2)
+	events := make([]meetingEventsEvent, 0, maxMeetingEventsIMPostRows+2)
 	for i := 0; i < maxMeetingEventsIMPostRows+2; i++ {
-		events = append(events, normalizedMeetingEvent{
+		events = append(events, meetingEventsEvent{
 			EventType: "chat_received",
 			EventTime: "2026-04-17T08:05:00Z",
 			Payload: map[string]interface{}{
@@ -795,7 +795,7 @@ func TestBuildMeetingEventsIMPost_TruncatesLargePayload(t *testing.T) {
 		})
 	}
 
-	post := buildMeetingEventsIMPost(normalizedMeeting{Topic: "项目例会"}, events)
+	post := buildMeetingEventsIMPost(meetingEventsMeeting{Topic: "项目例会"}, events)
 	if post == nil {
 		t.Fatal("buildMeetingEventsIMPost() = nil, want post")
 	}

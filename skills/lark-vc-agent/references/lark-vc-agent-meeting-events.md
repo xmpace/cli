@@ -14,7 +14,7 @@
 ## 命令
 
 ```bash
-# 默认用法：全量拉取当前身份可见事件；输出 normalized 事件契约
+# 默认用法：全量拉取当前身份可见事件；输出结构化事件契约
 lark-cli vc +meeting-events --as <same_identity> --meeting-id <id> --page-all --format pretty
 
 # 指定时间范围，并拉全该时间窗内当前可见事件
@@ -161,7 +161,7 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 | `meeting` | 会议身份与时间状态，包含 `id/topic/meeting_no/start_time/end_time/status` |
 | `identity` | 当前读取身份，包含 `id/name/participant_type/role/is_self/label` |
 | `current_roster` | 服务端当前名单，不从历史事件 replay 推导 |
-| `events` | normalized 事件列表；每条事件含 `actors` 和原始 `payload/raw` |
+| `events` | 结构化事件列表；每条事件含 `actors` 和原始 `payload/raw` |
 | `has_more` | 是否还有下一页 |
 | `page_token` | 下一页游标 |
 

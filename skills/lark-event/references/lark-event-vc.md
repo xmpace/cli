@@ -144,9 +144,9 @@ These keys model what the bot observes. Do not treat them as aliases for:
 | `meeting_no` | string | Meeting number when present in the payload |
 | `activity_event_type` | string | Meeting activity subtype when present |
 | `chat_emoji_types` | string[] | Feishu post emotion `emoji_type` values extracted from `vc.bot.meeting_activity_v1` payloads |
-| `raw_event` | object | Original bot event payload; authoritative for fields not normalized by `lark-cli` |
+| `raw_event` | object | Original bot event payload; authoritative for fields not exposed as stable top-level fields |
 
-Malformed or evolving payloads are not over-normalized. If a payload cannot be parsed, `event consume` passes the raw payload through; if a field is not recognized, read `raw_event`.
+Malformed or evolving payloads are not forced into fixed fields. If a payload cannot be parsed, `event consume` passes the raw payload through; if a field is not recognized, read `raw_event`.
 
 ### Post emotion forwarding
 

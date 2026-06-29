@@ -109,7 +109,7 @@ var VCMeetingEvents = common.Shortcut{
 			return err
 		}
 		currentRoster, rosterWarning := fetchMeetingEventsCurrentRoster(runtime)
-		outData := buildNormalizedMeetingEvents(data, events, currentRoster, identity, rosterWarning)
+		outData := buildMeetingEventsOutput(data, events, currentRoster, identity, rosterWarning)
 		metadata := map[string]interface{}{
 			"row_type":       "metadata",
 			"meeting":        outData.Meeting,
@@ -121,7 +121,7 @@ var VCMeetingEvents = common.Shortcut{
 		if len(outData.Warnings) > 0 {
 			metadata["warnings"] = outData.Warnings
 		}
-		ndjsonData := normalizedMeetingEventRows(outData.Events, metadata)
+		ndjsonData := meetingEventsEventRows(outData.Events, metadata)
 
 		timeline := buildMeetingEventTimeline(events)
 		if runtime.Format == "ndjson" {
@@ -141,18 +141,18 @@ var VCMeetingEvents = common.Shortcut{
 	},
 }
 
-type normalizedMeetingEventsOutput struct {
-	Meeting       normalizedMeeting        `json:"meeting"`
-	Identity      normalizedIdentity       `json:"identity"`
-	CurrentRoster []normalizedIdentity     `json:"current_roster"`
-	Events        []normalizedMeetingEvent `json:"events"`
-	IMPost        *meetingEventsIMPost     `json:"im_post,omitempty"`
-	Warnings      []string                 `json:"warnings,omitempty"`
-	HasMore       bool                     `json:"has_more"`
-	PageToken     string                   `json:"page_token,omitempty"`
+type meetingEventsOutput struct {
+	Meeting       meetingEventsMeeting    `json:"meeting"`
+	Identity      meetingEventsIdentity   `json:"identity"`
+	CurrentRoster []meetingEventsIdentity `json:"current_roster"`
+	Events        []meetingEventsEvent    `json:"events"`
+	IMPost        *meetingEventsIMPost    `json:"im_post,omitempty"`
+	Warnings      []string                `json:"warnings,omitempty"`
+	HasMore       bool                    `json:"has_more"`
+	PageToken     string                  `json:"page_token,omitempty"`
 }
 
-type normalizedMeeting struct {
+type meetingEventsMeeting struct {
 	ID        string `json:"id,omitempty"`
 	Topic     string `json:"topic,omitempty"`
 	MeetingNo string `json:"meeting_no,omitempty"`
@@ -161,7 +161,7 @@ type normalizedMeeting struct {
 	Status    string `json:"status"`
 }
 
-type normalizedIdentity struct {
+type meetingEventsIdentity struct {
 	ID              string `json:"id,omitempty"`
 	Name            string `json:"name,omitempty"`
 	ParticipantType string `json:"participant_type,omitempty"`
@@ -170,14 +170,14 @@ type normalizedIdentity struct {
 	Label           string `json:"label,omitempty"`
 }
 
-type normalizedMeetingEvent struct {
-	EventID   string                 `json:"event_id,omitempty"`
-	EventType string                 `json:"event_type,omitempty"`
-	EventTime string                 `json:"event_time,omitempty"`
-	Summary   string                 `json:"summary,omitempty"`
-	Actors    []normalizedIdentity   `json:"actors,omitempty"`
-	Payload   map[string]interface{} `json:"payload,omitempty"`
-	Raw       map[string]interface{} `json:"raw,omitempty"`
+type meetingEventsEvent struct {
+	EventID   string                  `json:"event_id,omitempty"`
+	EventType string                  `json:"event_type,omitempty"`
+	EventTime string                  `json:"event_time,omitempty"`
+	Summary   string                  `json:"summary,omitempty"`
+	Actors    []meetingEventsIdentity `json:"actors,omitempty"`
+	Payload   map[string]interface{}  `json:"payload,omitempty"`
+	Raw       map[string]interface{}  `json:"raw,omitempty"`
 }
 
 type meetingEventsIMPost struct {
@@ -195,15 +195,15 @@ type meetingEventsIMPostElement struct {
 	EmojiType string `json:"emoji_type,omitempty"`
 }
 
-func buildNormalizedMeetingEvents(data map[string]interface{}, events []interface{}, currentRoster []interface{}, identity normalizedIdentity, warnings ...string) normalizedMeetingEventsOutput {
-	normalized := normalizedMeetingEventsOutput{
+func buildMeetingEventsOutput(data map[string]interface{}, events []interface{}, currentRoster []interface{}, identity meetingEventsIdentity, warnings ...string) meetingEventsOutput {
+	output := meetingEventsOutput{
 		Identity:  identity,
 		HasMore:   common.GetBool(data, "has_more"),
 		PageToken: common.GetString(data, "page_token"),
 	}
 	for _, warning := range warnings {
 		if warning = strings.TrimSpace(warning); warning != "" {
-			normalized.Warnings = append(normalized.Warnings, warning)
+			output.Warnings = append(output.Warnings, warning)
 		}
 	}
 	for _, raw := range events {
@@ -212,29 +212,29 @@ func buildNormalizedMeetingEvents(data map[string]interface{}, events []interfac
 			continue
 		}
 		payload := common.GetMap(event, "payload")
-		if normalized.Meeting.ID == "" {
-			normalized.Meeting = normalizeMeeting(common.GetMap(payload, "meeting"))
+		if output.Meeting.ID == "" {
+			output.Meeting = meetingEventsMeetingFromPayload(common.GetMap(payload, "meeting"))
 		}
-		normalized.Events = append(normalized.Events, normalizeMeetingEvent(event, normalized.Identity))
+		output.Events = append(output.Events, meetingEventsEventFromPayload(event, output.Identity))
 	}
-	normalized.CurrentRoster = normalizeCurrentRoster(currentRoster, normalized.Identity)
-	normalized.IMPost = buildMeetingEventsIMPost(normalized.Meeting, normalized.Events)
-	return normalized
+	output.CurrentRoster = meetingEventsCurrentRoster(currentRoster, output.Identity)
+	output.IMPost = buildMeetingEventsIMPost(output.Meeting, output.Events)
+	return output
 }
 
-func meetingEventsCurrentIdentity(runtime *common.RuntimeContext) (normalizedIdentity, error) {
+func meetingEventsCurrentIdentity(runtime *common.RuntimeContext) (meetingEventsIdentity, error) {
 	if runtime.As() == core.AsBot {
 		botInfo, err := runtime.BotInfo()
 		if err != nil {
-			return normalizedIdentity{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "fetch bot identity for compact meeting-events output: %v", err).WithParam("--as")
+			return meetingEventsIdentity{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "fetch bot identity for compact meeting-events output: %v", err).WithParam("--as")
 		}
-		return normalizeBotIdentity(botInfo), nil
+		return meetingEventsBotIdentity(botInfo), nil
 	}
 	userOpenID := strings.TrimSpace(runtime.UserOpenId())
 	if userOpenID == "" {
-		return normalizedIdentity{}, errs.NewValidationError(errs.SubtypeFailedPrecondition, "current user open_id is unavailable for compact meeting-events output").WithParam("--as")
+		return meetingEventsIdentity{}, errs.NewValidationError(errs.SubtypeFailedPrecondition, "current user open_id is unavailable for compact meeting-events output").WithParam("--as")
 	}
-	identity := normalizedIdentity{
+	identity := meetingEventsIdentity{
 		ID:              userOpenID,
 		Name:            strings.TrimSpace(runtime.Config.UserName),
 		ParticipantType: "human",
@@ -266,11 +266,11 @@ func fetchMeetingEventsCurrentRoster(runtime *common.RuntimeContext) ([]interfac
 	return common.GetSlice(data, "current_roster"), ""
 }
 
-func normalizeBotIdentity(botInfo *common.BotInfo) normalizedIdentity {
+func meetingEventsBotIdentity(botInfo *common.BotInfo) meetingEventsIdentity {
 	if botInfo == nil {
-		return normalizedIdentity{ParticipantType: "bot", Role: "bot", IsSelf: true, Label: "bot"}
+		return meetingEventsIdentity{ParticipantType: "bot", Role: "bot", IsSelf: true, Label: "bot"}
 	}
-	identity := normalizedIdentity{
+	identity := meetingEventsIdentity{
 		ID:              botInfo.OpenID,
 		Name:            botInfo.AppName,
 		ParticipantType: "bot",
@@ -281,13 +281,13 @@ func normalizeBotIdentity(botInfo *common.BotInfo) normalizedIdentity {
 	return identity
 }
 
-func normalizeMeeting(meeting map[string]interface{}) normalizedMeeting {
-	out := normalizedMeeting{
+func meetingEventsMeetingFromPayload(meeting map[string]interface{}) meetingEventsMeeting {
+	out := meetingEventsMeeting{
 		ID:        common.GetString(meeting, "id"),
 		Topic:     common.GetString(meeting, "topic"),
 		MeetingNo: common.GetString(meeting, "meeting_no"),
-		StartTime: normalizeTimeString(common.GetString(meeting, "start_time")),
-		EndTime:   normalizeTimeString(common.GetString(meeting, "end_time")),
+		StartTime: meetingEventsTimeString(common.GetString(meeting, "start_time")),
+		EndTime:   meetingEventsTimeString(common.GetString(meeting, "end_time")),
 		Status:    "unknown",
 	}
 	start, hasStart := parseFlexibleTime(out.StartTime)
@@ -302,13 +302,13 @@ func normalizeMeeting(meeting map[string]interface{}) normalizedMeeting {
 	return out
 }
 
-func normalizeMeetingEvent(event map[string]interface{}, selfIdentity normalizedIdentity) normalizedMeetingEvent {
+func meetingEventsEventFromPayload(event map[string]interface{}, selfIdentity meetingEventsIdentity) meetingEventsEvent {
 	payload := common.GetMap(event, "payload")
 	rawCopy := cloneStringMap(event)
-	out := normalizedMeetingEvent{
+	out := meetingEventsEvent{
 		EventID:   common.GetString(event, "event_id"),
 		EventType: meetingEventType(event),
-		EventTime: normalizeTimeString(common.GetString(event, "event_time")),
+		EventTime: meetingEventsTimeString(common.GetString(event, "event_time")),
 		Summary:   meetingEventSummary(event),
 		Payload:   payload,
 		Raw:       rawCopy,
@@ -317,8 +317,8 @@ func normalizeMeetingEvent(event map[string]interface{}, selfIdentity normalized
 	return out
 }
 
-func normalizeCurrentRoster(rawRoster []interface{}, selfIdentity normalizedIdentity) []normalizedIdentity {
-	roster := make([]normalizedIdentity, 0, len(rawRoster))
+func meetingEventsCurrentRoster(rawRoster []interface{}, selfIdentity meetingEventsIdentity) []meetingEventsIdentity {
+	roster := make([]meetingEventsIdentity, 0, len(rawRoster))
 	for _, raw := range rawRoster {
 		item, _ := raw.(map[string]interface{})
 		if item == nil {
@@ -328,13 +328,13 @@ func normalizeCurrentRoster(rawRoster []interface{}, selfIdentity normalizedIden
 		if nested := common.GetMap(item, "participant"); nested != nil {
 			participant = nested
 		}
-		roster = append(roster, normalizeParticipant(participant, selfIdentity))
+		roster = append(roster, meetingEventsIdentityFromParticipant(participant, selfIdentity))
 	}
 	return roster
 }
 
-func eventActors(eventType string, payload map[string]interface{}, selfIdentity normalizedIdentity) []normalizedIdentity {
-	var actors []normalizedIdentity
+func eventActors(eventType string, payload map[string]interface{}, selfIdentity meetingEventsIdentity) []meetingEventsIdentity {
+	var actors []meetingEventsIdentity
 	addFromItems := func(key, participantKey string) {
 		for _, raw := range common.GetSlice(payload, key) {
 			item, _ := raw.(map[string]interface{})
@@ -342,7 +342,7 @@ func eventActors(eventType string, payload map[string]interface{}, selfIdentity 
 				continue
 			}
 			if participant := common.GetMap(item, participantKey); participant != nil {
-				actors = append(actors, normalizeParticipant(participant, selfIdentity))
+				actors = append(actors, meetingEventsIdentityFromParticipant(participant, selfIdentity))
 			}
 		}
 	}
@@ -363,12 +363,12 @@ func eventActors(eventType string, payload map[string]interface{}, selfIdentity 
 	return actors
 }
 
-func normalizeParticipant(participant map[string]interface{}, selfIdentity normalizedIdentity) normalizedIdentity {
-	identity := normalizedIdentity{
+func meetingEventsIdentityFromParticipant(participant map[string]interface{}, selfIdentity meetingEventsIdentity) meetingEventsIdentity {
+	identity := meetingEventsIdentity{
 		ID:              common.GetString(participant, "id"),
 		Name:            common.GetString(participant, "user_name"),
-		ParticipantType: normalizeParticipantType(participant),
-		Role:            normalizeRole(participant),
+		ParticipantType: meetingEventsParticipantType(participant),
+		Role:            meetingEventsParticipantRole(participant),
 	}
 	if identity.ID != "" && selfIdentity.ID != "" && identity.ID == selfIdentity.ID {
 		identity.IsSelf = true
@@ -389,7 +389,7 @@ func normalizeParticipant(participant map[string]interface{}, selfIdentity norma
 	return identity
 }
 
-func normalizeParticipantType(participant map[string]interface{}) string {
+func meetingEventsParticipantType(participant map[string]interface{}) string {
 	raw := strings.ToLower(strings.TrimSpace(firstNonEmptyString(participant, "participant_type", "user_type", "type")))
 	switch raw {
 	case "1", "user", "human":
@@ -403,7 +403,7 @@ func normalizeParticipantType(participant map[string]interface{}) string {
 	}
 }
 
-func normalizeRole(participant map[string]interface{}) string {
+func meetingEventsParticipantRole(participant map[string]interface{}) string {
 	raw := strings.ToLower(strings.TrimSpace(firstNonEmptyString(participant, "role", "participant_role")))
 	switch raw {
 	case "1", "host":
@@ -430,7 +430,7 @@ func firstNonEmptyString(values map[string]interface{}, keys ...string) string {
 	return ""
 }
 
-func identityLabel(identity normalizedIdentity) string {
+func identityLabel(identity meetingEventsIdentity) string {
 	name := identity.Name
 	if name == "" {
 		name = identity.ID
@@ -454,7 +454,7 @@ func identityLabel(identity normalizedIdentity) string {
 	return fmt.Sprintf("%s [%s]", name, strings.Join(tags, ","))
 }
 
-func normalizeTimeString(raw string) string {
+func meetingEventsTimeString(raw string) string {
 	if parsed, ok := parseFlexibleTime(raw); ok {
 		return parsed.UTC().Format(time.RFC3339)
 	}
@@ -476,7 +476,7 @@ func cloneStringMap(in map[string]interface{}) map[string]interface{} {
 	return out
 }
 
-func normalizedMeetingEventRows(events []normalizedMeetingEvent, metadata map[string]interface{}) []interface{} {
+func meetingEventsEventRows(events []meetingEventsEvent, metadata map[string]interface{}) []interface{} {
 	rows := make([]interface{}, 0, len(events)+1)
 	for _, event := range events {
 		row := map[string]interface{}{
@@ -497,7 +497,7 @@ func normalizedMeetingEventRows(events []normalizedMeetingEvent, metadata map[st
 	return rows
 }
 
-func buildMeetingEventsIMPost(meeting normalizedMeeting, events []normalizedMeetingEvent) *meetingEventsIMPost {
+func buildMeetingEventsIMPost(meeting meetingEventsMeeting, events []meetingEventsEvent) *meetingEventsIMPost {
 	rows := make([][]meetingEventsIMPostElement, 0, len(events))
 	truncated := false
 	for _, event := range events {
@@ -529,7 +529,7 @@ func buildMeetingEventsIMPost(meeting normalizedMeeting, events []normalizedMeet
 	}
 }
 
-func meetingEventIMPostRows(event normalizedMeetingEvent) [][]meetingEventsIMPostElement {
+func meetingEventIMPostRows(event meetingEventsEvent) [][]meetingEventsIMPostElement {
 	switch event.EventType {
 	case "chat_received":
 		return chatIMPostRows(event)
@@ -577,7 +577,7 @@ func truncateRunes(text string, max int) (string, bool) {
 	return string(runes[:max]), true
 }
 
-func chatIMPostRows(event normalizedMeetingEvent) [][]meetingEventsIMPostElement {
+func chatIMPostRows(event meetingEventsEvent) [][]meetingEventsIMPostElement {
 	items := common.GetSlice(event.Payload, "chat_received_items")
 	rows := make([][]meetingEventsIMPostElement, 0, len(items))
 	for _, raw := range items {
@@ -609,7 +609,7 @@ func chatIMPostRows(event normalizedMeetingEvent) [][]meetingEventsIMPostElement
 	return rows
 }
 
-func participantIMPostRows(event normalizedMeetingEvent, action string) [][]meetingEventsIMPostElement {
+func participantIMPostRows(event meetingEventsEvent, action string) [][]meetingEventsIMPostElement {
 	var rows [][]meetingEventsIMPostElement
 	for _, actor := range event.Actors {
 		label := actor.Name
@@ -624,7 +624,7 @@ func participantIMPostRows(event normalizedMeetingEvent, action string) [][]meet
 	return rows
 }
 
-func transcriptIMPostRows(event normalizedMeetingEvent) [][]meetingEventsIMPostElement {
+func transcriptIMPostRows(event meetingEventsEvent) [][]meetingEventsIMPostElement {
 	items := common.GetSlice(event.Payload, "transcript_received_items")
 	rows := make([][]meetingEventsIMPostElement, 0, len(items))
 	for _, raw := range items {
@@ -646,7 +646,7 @@ func transcriptIMPostRows(event normalizedMeetingEvent) [][]meetingEventsIMPostE
 	return rows
 }
 
-func magicShareIMPostRows(event normalizedMeetingEvent, action string) [][]meetingEventsIMPostElement {
+func magicShareIMPostRows(event meetingEventsEvent, action string) [][]meetingEventsIMPostElement {
 	itemsKey := "magic_share_started_items"
 	if event.EventType == "magic_share_ended" {
 		itemsKey = "magic_share_ended_items"
@@ -716,7 +716,7 @@ func joinNonEmpty(left, right, sep string) string {
 	}
 }
 
-func renderMeetingEventsCompactPretty(w io.Writer, data normalizedMeetingEventsOutput, timeline meetingTimeline) {
+func renderMeetingEventsCompactPretty(w io.Writer, data meetingEventsOutput, timeline meetingTimeline) {
 	if data.Identity.Label != "" {
 		fmt.Fprintf(w, "当前身份：%s\n", escapePrettyText(data.Identity.Label))
 	}
