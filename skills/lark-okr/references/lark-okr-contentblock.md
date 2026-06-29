@@ -2,6 +2,17 @@
 
 OKR 的 Objective、KeyResult 中的 content/notes 字段使用 `ContentBlock` 富文本格式。本文档描述其结构和使用方式。
 
+## 两种输入输出风格
+
+从 v1.0.59 开始，OKR shortcuts 支持 `--style` 标志控制 content/notes 字段的输入输出格式：
+
+| `--style` 值 | 说明 | 适用场景 |
+|------------|------|--------|
+| `simple`（默认） | 半纯文本格式 `SemiPlainContent`，简化的 JSON 结构，仅包含 text、mention、docs、images | 大多数场景，简单易用 |
+| `richtext` | 原始 `ContentBlock` 富文本格式，完整的块结构和样式信息 | 需要精确控制格式、包含图片/文档链接时 |
+
+**重要**：输入时严格根据 `--style` 值验证格式，不会自动检测。输出时读操作（如 `+cycle-detail`、`+progress-get`）根据 `--style` 返回对应格式。
+
 ## ContentBlock 结构概览
 
 ```json
@@ -215,9 +226,66 @@ OKR 的 Objective、KeyResult 中的 content/notes 字段使用 `ContentBlock` �
 |-------|----------|--------|
 | `url` | `string` | 链接 URL |
 
+## SemiPlainContent 半纯文本格式
+
+`SemiPlainContent` 是 `ContentBlock` 的简化、有损表示形式，适用于大多数不需要复杂格式的场景。
+
+### 结构
+
+```json
+{
+  "text": "任务一 @{ou_zhangsan} ，任务二 @{ou_lisi} ",
+  "mention": ["ou_zhangsan", "ou_lisi"],
+  "docs": [
+    {
+      "title": "产品需求文档",
+      "url": "https://larkoffice.com/docx/xxx"
+    }
+  ],
+  "images": [
+    "https://example.com/image.png"
+  ]
+}
+```
+
+### 类型定义
+
+| 字段        | 类型              | 说明                                                                 |
+|-----------|-----------------|--------------------------------------------------------------------|
+| `text`    | `string`        | 纯文本内容（必填，不能为空）。**输出时**包含 ` @{userID} ` 占位符以保留提及的位置上下文；**输入时** `@{...}` 占位符会被自动 strip 掉 |
+| `mention` | `string[]`      | 用户 ID 列表（可选），与 text 中的 `@{userID}` 占位符一一对应，输入时按顺序转换为 mention 元素                      |
+| `docs`    | `SemiPlainDoc[]`| 文档列表（仅输出时包含，输入时 simple 风格不支持）                                        |
+| `images`  | `string[]`      | 图片 URL 列表（仅输出时包含，输入时 simple 风格不支持）                                     |
+
+### SemiPlainDoc
+
+| 字段      | 类型       | 说明     |
+|---------|----------|--------|
+| `title` | `string` | 文档标题   |
+| `url`   | `string` | 文档 URL |
+
+### 双向转换说明
+
+- **ContentBlock → SemiPlainContent**（输出时）：提取纯文本、提及用户、文档链接和图片 URL，丢弃格式信息（粗体、列表、颜色等）。**提及的位置信息通过 ` @{userID} ` 占位符保留在 text 中**，同时 userID 也会被收集到 mention 数组中
+- **SemiPlainContent → ContentBlock**（输入时）：自动 strip 掉 text 中的 `@{...}` 占位符，然后将 text 和 mention 合并为单个段落，mention 按顺序附加在文本末尾。docs 和 images 在输入时被忽略（simple 风格不支持）
+
 ## 使用示例
 
-### 示例 1：简单文本段落
+### 示例 0：半纯文本格式（推荐，simple 风格）
+
+```json
+{
+  "text": "提升用户满意度",
+  "mention": ["ou_123"]
+}
+```
+
+使用方式：
+```bash
+lark-cli okr +patch --level objective --target-id 123 --content '{"text":"提升用户满意度","mention":["ou_123"]}'
+```
+
+### 示例 1：简单文本段落（richtext 风格）
 
 ```json
 {

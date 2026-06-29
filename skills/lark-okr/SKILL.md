@@ -32,11 +32,12 @@ Shortcut 是对常用操作的高级封装（`lark-cli okr +<verb> [flags]`）�
 | [`+reorder`](references/lark-okr-reorder.md)                   | 调整 Objective 或 KR 的顺位    |
 | [`+weight`](references/lark-okr-weight.md)                     | 调整 Objective 或 KR 的权重    |
 | [`+indicator-update`](references/lark-okr-indicator-update.md) | 更新 Objective 或 KR 的指标当前值 |
+| [`+patch`](references/lark-okr-patch.md)                       | 部分更新 Objective 或 KR（content、notes、score、deadline） |
 
 ## 格式说明
 
 - [`OKR 业务实体`](references/lark-okr-entities.md) 获取 OKR 实体结构，定义和关系，帮助你更好的使用 OKR 功能
-- [`ContentBlock 富文本格式`](references/lark-okr-contentblock.md) — Objective/KeyResult/Progress 中 Content/Note 字段使用的富文本格式说明
+- [`ContentBlock 富文本格式`](references/lark-okr-contentblock.md) — Objective/KeyResult/Progress 中 Content/Note 字段使用的富文本格式说明，包含半纯文本（SemiPlainContent）简化格式
 - **强烈建议** 在操作 OKR 前，阅读[`OKR 业务实体`](references/lark-okr-entities.md)以了解基础概念
 
 ## API Resources
