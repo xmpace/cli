@@ -186,18 +186,19 @@ lark-cli vc +meeting-events --as user --meeting-id <id> --page-all --format pret
 - `payload.chat_received_items[].message_type == 3`
 - `payload.chat_received_items[].content` 是飞书 IM `post` 消息可直接使用的 `emoji_type`
 
-VC 域会在 `+meeting-events --format json` 的顶层返回 `im_post`，它已经是可直接发送到飞书 IM 的 `post` payload：
+VC 域会在 `+meeting-events --format json` 的返回体中输出 `data.im_post`（兼容部分裸数据输出时的 `im_post`），它已经是可直接发送到飞书 IM 的 `post` payload：
 
 - 普通聊天、转写、参会变化等是 `tag:"text"`。
 - 会中 reaction 是 `tag:"emotion"`，`emoji_type` 已由 VC 域从 reaction `content` 填好。
 - 发送到 IM 时，不要重新解析 pretty 输出，不要生成 Markdown 报告，不要自行把 reaction 渲染成文字。
+- 如果发送前需要先确认收件人、内容或发送身份，只保留 `im_post` 作为待发送 payload；确认后继续发送该 `im_post`，不要发送确认前展示给用户的文字摘要。
 
 ```bash
 POST=$(lark-cli vc +meeting-events \
   --as <same_identity> \
   --meeting-id <id> \
   --page-all \
-  --format json | jq -c '.im_post')
+  --format json | jq -c '.data.im_post // .im_post')
 
 lark-cli im +messages-send \
   --as bot \
@@ -206,7 +207,7 @@ lark-cli im +messages-send \
   --content "$POST"
 ```
 
-如果需要在发送前确认内容，检查 `im_post.zh_cn.content` 是否已经包含 `{"tag":"emotion","emoji_type":"OK"}` 这类节点。不要把 `im_post` 转成 Markdown 或普通文本再发送。
+如果需要在发送前确认内容，检查 `im_post.zh_cn.content` 是否已经包含 `{"tag":"emotion","emoji_type":"OK"}` 这类节点。不要把 `im_post` 转成 Markdown 或普通文本再发送；“发送以上内容”这类二次确认也仍然指向待发送的 `im_post` payload，不是前一条自然语言预览。
 
 ## pretty 输出示例
 
