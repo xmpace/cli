@@ -19,7 +19,7 @@ const (
 	eventTypeRecordingTranscriptGenerated = "vc.recording.recording_transcript_generated_v1"
 	eventTypeRecordingEnded               = "vc.recording.recording_ended_v1"
 	eventTypeBotMeetingInvited            = "vc.bot.meeting_invited_v1"
-	eventTypeBotMeetingEvent              = "vc.bot.meeting_event_v1"
+	eventTypeBotMeetingEvent              = "vc.bot.meeting_activity_v1"
 	eventTypeBotMeetingEnded              = "vc.bot.meeting_ended_v1"
 
 	pathMeetingSubscribe     = "/open-apis/vc/v1/meetings/subscription"
@@ -161,7 +161,7 @@ func Keys() []event.KeyDefinition {
 		},
 		{
 			Key:         eventTypeBotMeetingEvent,
-			DisplayName: "Bot meeting event",
+			DisplayName: "Bot meeting activity",
 			Description: "Triggered when the bot observes activity in a meeting; keeps the raw bot payload and extracts stable activity fields",
 			EventType:   eventTypeBotMeetingEvent,
 			Schema: event.SchemaDef{

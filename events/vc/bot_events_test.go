@@ -84,14 +84,14 @@ func TestProcessVCBotEvents_StableFieldsAndRawEvent(t *testing.T) {
 			},
 		},
 		{
-			name:      "meeting event",
+			name:      "meeting activity",
 			eventType: eventTypeBotMeetingEvent,
 			process:   processVCBotMeetingEvent,
 			payload: `{
 				"schema": "2.0",
 				"header": {
 					"event_id": "ev_activity",
-					"event_type": "vc.bot.meeting_event_v1",
+					"event_type": "vc.bot.meeting_activity_v1",
 					"create_time": "1776409469274"
 				},
 				"event": {
@@ -99,6 +99,7 @@ func TestProcessVCBotEvents_StableFieldsAndRawEvent(t *testing.T) {
 					"activity_event_type": "chat_message",
 					"chat_messages": [
 						{"message_type": 3, "reaction_type": {"emoji_type": "JIAYI"}},
+						{"message_type": 3, "reaction_type": "SMART"},
 						{"message_type": 3, "chat_emoji_types": ["OK", "JIAYI"]}
 					]
 				}
@@ -110,7 +111,38 @@ func TestProcessVCBotEvents_StableFieldsAndRawEvent(t *testing.T) {
 				MeetingNo:         "987654321",
 				ActivityEventType: "chat_message",
 			},
-			wantEmojis: []string{"JIAYI", "OK"},
+			wantEmojis: []string{"JIAYI", "SMART", "OK"},
+		},
+		{
+			name:      "meeting activity reaction content",
+			eventType: eventTypeBotMeetingEvent,
+			process:   processVCBotMeetingEvent,
+			payload: `{
+				"schema": "2.0",
+				"header": {
+					"event_id": "ev_activity_content",
+					"event_type": "vc.bot.meeting_activity_v1",
+					"create_time": "1776409469276"
+				},
+				"event": {
+					"meeting_activity_items": [{
+						"activity_event_type": "chat_received",
+						"chat_received_items": [
+							{"message_type": 1, "content": "ws test"},
+							{"message_type": 3, "content": "OK"}
+						],
+						"meeting": {"meeting_no": "427607561"}
+					}]
+				}
+			}`,
+			want: VCBotEventOutput{
+				Type:              eventTypeBotMeetingEvent,
+				EventID:           "ev_activity_content",
+				Timestamp:         "1776409469276",
+				MeetingNo:         "427607561",
+				ActivityEventType: "chat_received",
+			},
+			wantEmojis: []string{"OK"},
 		},
 		{
 			name:      "ended",

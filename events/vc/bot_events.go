@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 
 	"github.com/larksuite/cli/internal/event"
 )
@@ -20,7 +21,7 @@ type VCBotEventOutput struct {
 	CallID            string          `json:"call_id,omitempty"            desc:"Bot invitation call ID; pass through to vc agent join when present"`
 	MeetingNo         string          `json:"meeting_no,omitempty"         desc:"Meeting number when present in the bot event payload"`
 	ActivityEventType string          `json:"activity_event_type,omitempty" desc:"Meeting activity event subtype when present"`
-	ChatEmojiTypes    []string        `json:"chat_emoji_types,omitempty"   desc:"Feishu post emotion emoji_type values extracted from vc.bot.meeting_event_v1 payloads"`
+	ChatEmojiTypes    []string        `json:"chat_emoji_types,omitempty"   desc:"Feishu post emotion emoji_type values extracted from vc.bot.meeting_activity_v1 payloads"`
 	RawEvent          json.RawMessage `json:"raw_event,omitempty"          desc:"Original VC bot event payload; authoritative for fields not normalized by lark-cli"`
 }
 
@@ -118,18 +119,15 @@ func botEmojiTypes(value any) []string {
 func collectEmojiTypes(value any, seen map[string]bool, out *[]string) {
 	switch v := value.(type) {
 	case map[string]any:
-		for _, key := range []string{"emoji_type", "chat_emoji_type"} {
-			if s := jsonString(v[key]); s != "" && !seen[s] {
-				seen[s] = true
-				*out = append(*out, s)
-			}
+		if isBotMeetingReactionItem(v) {
+			addEmojiType(jsonString(v["content"]), seen, out)
+		}
+		for _, key := range []string{"emoji_type", "chat_emoji_type", "reaction_type"} {
+			addEmojiType(jsonString(v[key]), seen, out)
 		}
 		if raw, ok := v["chat_emoji_types"]; ok {
 			for _, s := range jsonStringSlice(raw) {
-				if !seen[s] {
-					seen[s] = true
-					*out = append(*out, s)
-				}
+				addEmojiType(s, seen, out)
 			}
 		}
 		for _, child := range v {
@@ -140,6 +138,29 @@ func collectEmojiTypes(value any, seen map[string]bool, out *[]string) {
 			collectEmojiTypes(child, seen, out)
 		}
 	}
+}
+
+func isBotMeetingReactionItem(v map[string]any) bool {
+	switch raw := v["message_type"].(type) {
+	case json.Number:
+		n, err := raw.Int64()
+		return err == nil && n == 3
+	case float64:
+		return raw == 3
+	case string:
+		return strings.TrimSpace(raw) == "3"
+	default:
+		return false
+	}
+}
+
+func addEmojiType(value string, seen map[string]bool, out *[]string) {
+	value = strings.TrimSpace(value)
+	if value == "" || seen[value] {
+		return
+	}
+	seen[value] = true
+	*out = append(*out, value)
 }
 
 func jsonString(value any) string {
