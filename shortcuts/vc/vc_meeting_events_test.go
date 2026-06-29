@@ -70,6 +70,18 @@ func botInfoStub() *httpmock.Stub {
 	}
 }
 
+func botInfoErrorStub() *httpmock.Stub {
+	return &httpmock.Stub{
+		Method: "GET",
+		URL:    "/open-apis/bot/v3/info",
+		Status: 500,
+		Body: map[string]interface{}{
+			"code": 99991663,
+			"msg":  "bot info unavailable",
+		},
+	}
+}
+
 func meetingDetailRosterStub(roster []interface{}) *httpmock.Stub {
 	return &httpmock.Stub{
 		Method: "GET",
@@ -631,6 +643,37 @@ func TestMeetingEvents_ExecuteJSON_RosterErrorDoesNotBlockEvents(t *testing.T) {
 		`"current_roster":[]`,
 		`"warnings":[`,
 		`current_rosterunavailable`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("json output missing %q: %s", want, stdout.String())
+		}
+	}
+}
+
+func TestMeetingEvents_ExecuteJSON_BotIdentityErrorDoesNotBlockEvents(t *testing.T) {
+	f, stdout, _, reg := cmdutil.TestFactory(t, defaultConfig())
+	reg.Register(meetingEventsStub([]interface{}{participantJoinedEvent()}, false, ""))
+	reg.Register(botInfoErrorStub())
+	reg.Register(meetingDetailRosterStub(nil))
+
+	err := mountAndRun(t, VCMeetingEvents, []string{
+		"+meeting-events",
+		"--meeting-id", "7628568141510692381",
+		"--format", "json",
+		"--as", "bot",
+	}, f, stdout)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	reg.Verify(t)
+
+	out := strings.ReplaceAll(stdout.String(), " ", "")
+	out = strings.ReplaceAll(out, "\n", "")
+	for _, want := range []string{
+		`"event_type":"participant_joined"`,
+		`"identity":{"participant_type":"bot","role":"bot","is_self":true,"label":"bot"}`,
+		`"warnings":[`,
+		`identityunavailable`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("json output missing %q: %s", want, stdout.String())

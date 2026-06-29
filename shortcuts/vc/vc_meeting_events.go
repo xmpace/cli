@@ -104,12 +104,9 @@ var VCMeetingEvents = common.Shortcut{
 			return err
 		}
 		events = compactMeetingEvents(events)
-		identity, err := meetingEventsCurrentIdentity(runtime)
-		if err != nil {
-			return err
-		}
+		identity, identityWarning := meetingEventsCurrentIdentity(runtime)
 		currentRoster, rosterWarning := fetchMeetingEventsCurrentRoster(runtime)
-		outData := buildMeetingEventsOutput(data, events, currentRoster, identity, rosterWarning)
+		outData := buildMeetingEventsOutput(data, events, currentRoster, identity, identityWarning, rosterWarning)
 		metadata := map[string]interface{}{
 			"row_type":       "metadata",
 			"meeting":        outData.Meeting,
@@ -222,18 +219,15 @@ func buildMeetingEventsOutput(data map[string]interface{}, events []interface{},
 	return output
 }
 
-func meetingEventsCurrentIdentity(runtime *common.RuntimeContext) (meetingEventsIdentity, error) {
+func meetingEventsCurrentIdentity(runtime *common.RuntimeContext) (meetingEventsIdentity, string) {
 	if runtime.As() == core.AsBot {
 		botInfo, err := runtime.BotInfo()
 		if err != nil {
-			return meetingEventsIdentity{}, errs.NewValidationError(errs.SubtypeInvalidArgument, "fetch bot identity for compact meeting-events output: %v", err).WithParam("--as")
+			return meetingEventsBotIdentity(nil), fmt.Sprintf("identity unavailable: %v", err)
 		}
-		return meetingEventsBotIdentity(botInfo), nil
+		return meetingEventsBotIdentity(botInfo), ""
 	}
 	userOpenID := strings.TrimSpace(runtime.UserOpenId())
-	if userOpenID == "" {
-		return meetingEventsIdentity{}, errs.NewValidationError(errs.SubtypeFailedPrecondition, "current user open_id is unavailable for compact meeting-events output").WithParam("--as")
-	}
 	identity := meetingEventsIdentity{
 		ID:              userOpenID,
 		Name:            strings.TrimSpace(runtime.Config.UserName),
@@ -242,7 +236,10 @@ func meetingEventsCurrentIdentity(runtime *common.RuntimeContext) (meetingEvents
 		IsSelf:          true,
 	}
 	identity.Label = identityLabel(identity)
-	return identity, nil
+	if userOpenID == "" {
+		return identity, "identity unavailable: current user open_id is unavailable"
+	}
+	return identity, ""
 }
 
 func fetchMeetingEventsCurrentRoster(runtime *common.RuntimeContext) ([]interface{}, string) {
